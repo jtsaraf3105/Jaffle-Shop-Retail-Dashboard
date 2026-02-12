@@ -1,0 +1,2112 @@
+{
+  "datasets": [
+    {
+      "name": "b7193c98",
+      "displayName": "Untitled dataset",
+      "queryLines": [
+        "USE CATALOG `workspace`;\n",
+        "USE SCHEMA `default`;\n",
+        "\n",
+        "-- INSIGHT 3: Compare store efficiency using multiple performance indicators\n",
+        "-- BUSINESS USE: Identify best practices and improvement opportunities across locations\n",
+        "-- WHY IT MATTERS: Helps in expansion decisions and operational improvements\n",
+        "SELECT \n",
+        "    st.store_name as city,\n",
+        "    st.total_revenue,\n",
+        "    st.unique_customers,\n",
+        "    st.total_orders,\n",
+        "    ROUND(st.total_revenue / st.unique_customers, 2) AS revenue_per_customer,\n",
+        "    ROUND(st.total_revenue / st.total_orders, 2) AS avg_order_value,\n",
+        "    ROUND(st.total_revenue / st.store_age_days, 2) AS daily_revenue_rate,\n",
+        "    ROUND(st.total_orders * 1.0 / st.unique_customers, 2) AS avg_visits_per_customer,\n",
+        "    CASE \n",
+        "        WHEN (st.total_revenue / st.unique_customers) > (\n",
+        "            SELECT AVG(total_revenue/unique_customers) FROM jaffle_shop_retail.gold.dim_stores\n",
+        "        ) \n",
+        "        AND (st.total_revenue / st.store_age_days) > (\n",
+        "            SELECT AVG(total_revenue/store_age_days) FROM jaffle_shop_retail.gold.dim_stores\n",
+        "        ) \n",
+        "        THEN 'TOP PERFORMER'\n",
+        "        WHEN (st.total_revenue / st.unique_customers) > (\n",
+        "            SELECT AVG(total_revenue/unique_customers) FROM jaffle_shop_retail.gold.dim_stores\n",
+        "        )\n",
+        "        THEN 'ABOVE AVG'\n",
+        "        ELSE 'NEEDS IMPROVEMENT'\n",
+        "    END AS performance_tier\n",
+        "FROM jaffle_shop_retail.gold.dim_stores st\n",
+        "ORDER BY revenue_per_customer DESC;"
+      ]
+    },
+    {
+      "name": "7024b374",
+      "displayName": "Untitled dataset",
+      "queryLines": [
+        "USE CATALOG `workspace`;\n",
+        "USE SCHEMA `default`;\n",
+        "\n",
+        "-- INSIGHT 1: Understand customer spending behavior differences between weekends and weekdays\n",
+        "-- BUSINESS USE: Optimize staffing, promotions, and inventory planning based on day patterns\n",
+        "-- WHY IT MATTERS: Helps allocate resources efficiently and plan targeted marketing campaigns\n",
+        "\n",
+        "SELECT \n",
+        "    d.day_type,\n",
+        "    COUNT(DISTINCT fs.customer_id) AS unique_customers,\n",
+        "    COUNT(DISTINCT fs.order_id) AS total_orders,\n",
+        "    ROUND(AVG(fs.sales_amount), 2) AS avg_order_value,\n",
+        "    ROUND(SUM(fs.sales_amount) / COUNT(DISTINCT fs.customer_id), 2) AS avg_spend_per_customer,\n",
+        "    -- Calculate order frequency: total orders per unique customer\n",
+        "    ROUND(COUNT(DISTINCT fs.order_id) * 1.0 / COUNT(DISTINCT fs.customer_id), 2) AS orders_per_customer\n",
+        "FROM jaffle_shop_retail.gold.fact_sales fs\n",
+        "JOIN jaffle_shop_retail.gold.dim_date d ON fs.date_key = d.date_key\n",
+        "GROUP BY d.day_type\n",
+        "ORDER BY avg_order_value DESC;"
+      ]
+    },
+    {
+      "name": "3b711b45",
+      "displayName": "Untitled dataset",
+      "queryLines": [
+        "USE CATALOG `workspace`;\n",
+        "USE SCHEMA `default`;\n",
+        "\n",
+        "-- INSIGHT 2: Categorize products based on profitability and sales volume\n",
+        "-- BUSINESS USE: Product strategy - which to promote, which to optimize, which to discontinue\n",
+        "-- WHY IT MATTERS: Maximizes revenue by focusing on high-potential products\n",
+        "WITH product_sales AS (\n",
+        "    SELECT\n",
+        "        p.product_name,\n",
+        "        p.product_type,\n",
+        "        p.price_category,\n",
+        "        COUNT(fs.order_id) AS units_sold,\n",
+        "        AVG(fs.unit_profit) AS avg_profit_per_unit,\n",
+        "        AVG(fs.unit_price) AS avg_unit_price\n",
+        "    FROM jaffle_shop_retail.gold.fact_sales fs\n",
+        "    JOIN jaffle_shop_retail.gold.dim_products p \n",
+        "        ON fs.product_key = p.product_id\n",
+        "    GROUP BY \n",
+        "        p.product_name, \n",
+        "        p.product_type, \n",
+        "        p.price_category\n",
+        "),\n",
+        "avg_units_sold AS (\n",
+        "    SELECT AVG(units_sold) AS avg_units FROM product_sales\n",
+        ")\n",
+        "SELECT\n",
+        "    ps.product_name,\n",
+        "    ps.product_type,\n",
+        "    ps.price_category,\n",
+        "    ps.units_sold,\n",
+        "    ROUND(ps.avg_profit_per_unit, 2) AS avg_profit_per_unit,\n",
+        "    ROUND((ps.avg_profit_per_unit / ps.avg_unit_price) * 100, 2) AS margin_percentage,\n",
+        "    CASE \n",
+        "        WHEN ps.units_sold > aus.avg_units THEN 'VOLUME DRIVER - High Volume, Lower Margin'\n",
+        "        WHEN (ps.avg_profit_per_unit / ps.avg_unit_price) > 0.8 THEN 'HIGH MARGIN - Low Volume, High Profit'\n",
+        "        ELSE 'REVIEW NEEDED - Low Performance'\n",
+        "    END AS product_strategy_category\n",
+        "FROM product_sales ps\n",
+        "CROSS JOIN avg_units_sold aus\n",
+        "ORDER BY \n",
+        "    ps.units_sold DESC, \n",
+        "    margin_percentage DESC;"
+      ]
+    },
+    {
+      "name": "976368f2",
+      "displayName": "Untitled dataset",
+      "queryLines": [
+        "USE CATALOG `workspace`;\n",
+        "USE SCHEMA `default`;\n",
+        "\n",
+        "-- INSIGHT 2: Categorize products based on profitability and sales volume\n",
+        "-- BUSINESS USE: Product strategy - which to promote, which to optimize, which to discontinue\n",
+        "-- WHY IT MATTERS: Maximizes revenue by focusing on high-potential products\n",
+        "WITH product_sales AS (\n",
+        "    SELECT\n",
+        "        p.product_name,\n",
+        "        p.product_type,\n",
+        "        p.price_category,\n",
+        "        COUNT(fs.order_id) AS units_sold,\n",
+        "        AVG(fs.unit_profit) AS avg_profit_per_unit,\n",
+        "        AVG(fs.unit_price) AS avg_unit_price\n",
+        "    FROM jaffle_shop_retail.gold.fact_sales fs\n",
+        "    JOIN jaffle_shop_retail.gold.dim_products p \n",
+        "        ON fs.product_key = p.product_id\n",
+        "    GROUP BY \n",
+        "        p.product_name, \n",
+        "        p.product_type, \n",
+        "        p.price_category\n",
+        "),\n",
+        "avg_units_sold AS (\n",
+        "    SELECT AVG(units_sold) AS avg_units FROM product_sales\n",
+        ")\n",
+        "SELECT\n",
+        "    ps.product_name,\n",
+        "    ps.product_type,\n",
+        "    ps.price_category,\n",
+        "    ps.units_sold,\n",
+        "    ROUND(ps.avg_profit_per_unit, 2) AS avg_profit_per_unit,\n",
+        "    ROUND((ps.avg_profit_per_unit / ps.avg_unit_price) * 100, 2) AS margin_percentage,\n",
+        "    CASE \n",
+        "        WHEN ps.units_sold > aus.avg_units THEN 'VOLUME DRIVER - High Volume, Lower Margin'\n",
+        "        WHEN (ps.avg_profit_per_unit / ps.avg_unit_price) > 0.8 THEN 'HIGH MARGIN - Low Volume, High Profit'\n",
+        "        ELSE 'REVIEW NEEDED - Low Performance'\n",
+        "    END AS product_strategy_category\n",
+        "FROM product_sales ps\n",
+        "CROSS JOIN avg_units_sold aus\n",
+        "ORDER BY \n",
+        "    ps.units_sold DESC, \n",
+        "    margin_percentage DESC;"
+      ]
+    },
+    {
+      "name": "0890b3ac",
+      "displayName": "fact_sales",
+      "queryLines": [
+        "SELECT * FROM jaffle_shop_retail.gold.fact_sales"
+      ]
+    },
+    {
+      "name": "11189050",
+      "displayName": "fact_inventory",
+      "queryLines": [
+        "SELECT * FROM jaffle_shop_retail.gold.fact_inventory"
+      ]
+    },
+    {
+      "name": "6c563622",
+      "displayName": "dim_products",
+      "queryLines": [
+        "SELECT * FROM jaffle_shop_retail.gold.dim_products"
+      ]
+    },
+    {
+      "name": "b13ec9aa",
+      "displayName": "dim_date",
+      "queryLines": [
+        "SELECT * FROM jaffle_shop_retail.gold.dim_date"
+      ]
+    },
+    {
+      "name": "b12227df",
+      "displayName": "dim_stores",
+      "queryLines": [
+        "SELECT * FROM jaffle_shop_retail.gold.dim_stores"
+      ]
+    },
+    {
+      "name": "3a2ac488",
+      "displayName": "Untitled dataset",
+      "queryLines": [
+        "USE CATALOG `workspace`;\n",
+        "USE SCHEMA `default`;\n",
+        "\n",
+        "-- INSIGHT 1: Understand customer spending behavior differences between weekends and weekdays\n",
+        "-- BUSINESS USE: Optimize staffing, promotions, and inventory planning based on day patterns\n",
+        "-- WHY IT MATTERS: Helps allocate resources efficiently and plan targeted marketing campaigns\n",
+        "\n",
+        "SELECT \n",
+        "    d.day_type,\n",
+        "    COUNT(DISTINCT fs.customer_id) AS unique_customers,\n",
+        "    COUNT(DISTINCT fs.order_id) AS total_orders,\n",
+        "    ROUND(AVG(fs.sales_amount), 2) AS avg_order_value,\n",
+        "    ROUND(SUM(fs.sales_amount) / COUNT(DISTINCT fs.customer_id), 2) AS avg_spend_per_customer,\n",
+        "    -- Calculate order frequency: total orders per unique customer\n",
+        "    ROUND(COUNT(DISTINCT fs.order_id) * 1.0 / COUNT(DISTINCT fs.customer_id), 2) AS orders_per_customer\n",
+        "FROM jaffle_shop_retail.gold.fact_sales fs\n",
+        "JOIN jaffle_shop_retail.gold.dim_date d ON fs.date_key = d.date_key\n",
+        "GROUP BY d.day_type\n",
+        "ORDER BY avg_order_value DESC;\n",
+        "\n",
+        "-- INSIGHT 2: Categorize products based on profitability and sales volume\n",
+        "-- BUSINESS USE: Product strategy - which to promote, which to optimize, which to discontinue\n",
+        "-- WHY IT MATTERS: Maximizes revenue by focusing on high-potential products\n",
+        "SELECT \n",
+        "    p.product_name,\n",
+        "    p.product_type,\n",
+        "    p.price_category,\n",
+        "    COUNT(fs.order_id) AS units_sold,\n",
+        "    ROUND(AVG(fs.unit_profit), 2) AS avg_profit_per_unit,\n",
+        "    ROUND((AVG(fs.unit_profit) / AVG(fs.unit_price)) * 100, 2) AS margin_percentage,\n",
+        "    CASE \n",
+        "        WHEN COUNT(fs.order_id) > (\n",
+        "            SELECT AVG(cnt) FROM (\n",
+        "                SELECT COUNT(*) cnt \n",
+        "                FROM jaffle_shop_retail.gold.fact_sales \n",
+        "                GROUP BY product_key\n",
+        "            ) t\n",
+        "        ) AND (AVG(fs.unit_profit) / AVG(fs.unit_price)) > 0.8 THEN 'STAR PRODUCT - High Volume & High Margin'\n",
+        "        WHEN COUNT(fs.order_id) > (\n",
+        "            SELECT AVG(cnt) FROM (\n",
+        "                SELECT COUNT(*) cnt \n",
+        "                FROM jaffle_shop_retail.gold.fact_sales \n",
+        "                GROUP BY product_key\n",
+        "            ) t\n",
+        "        ) THEN 'VOLUME DRIVER - High Volume, Lower Margin'\n",
+        "        WHEN (AVG(fs.unit_profit) / AVG(fs.unit_price)) > 0.8 THEN 'HIGH MARGIN - Low Volume, High Profit'\n",
+        "        ELSE 'REVIEW NEEDED - Low Performance'\n",
+        "    END AS product_strategy_category\n",
+        "FROM jaffle_shop_retail.gold.fact_sales fs\n",
+        "JOIN jaffle_shop_retail.gold.dim_products p ON fs.product_key = p.product_id\n",
+        "GROUP BY p.product_name, p.product_type, p.price_category\n",
+        "ORDER BY units_sold DESC, margin_percentage DESC;\n",
+        "                                                                                                              \n",
+        "\n",
+        "-- INSIGHT 3: Compare store efficiency using multiple performance indicators\n",
+        "-- BUSINESS USE: Identify best practices and improvement opportunities across locations\n",
+        "-- WHY IT MATTERS: Helps in expansion decisions and operational improvements\n",
+        "SELECT \n",
+        "    st.store_name,\n",
+        "    st.total_revenue,\n",
+        "    st.unique_customers,\n",
+        "    st.total_orders,\n",
+        "    ROUND(st.total_revenue / st.unique_customers, 2) AS revenue_per_customer,\n",
+        "    ROUND(st.total_revenue / st.total_orders, 2) AS avg_order_value,\n",
+        "    ROUND(st.total_revenue / st.store_age_days, 2) AS daily_revenue_rate,\n",
+        "    ROUND(st.total_orders * 1.0 / st.unique_customers, 2) AS avg_visits_per_customer,\n",
+        "    CASE \n",
+        "        WHEN (st.total_revenue / st.unique_customers) > (\n",
+        "            SELECT AVG(total_revenue/unique_customers) FROM jaffle_shop_retail.gold.dim_stores\n",
+        "        ) \n",
+        "        AND (st.total_revenue / st.store_age_days) > (\n",
+        "            SELECT AVG(total_revenue/store_age_days) FROM jaffle_shop_retail.gold.dim_stores\n",
+        "        ) \n",
+        "            THEN 'HIGH PERFORMER - Efficient & Popular'\n",
+        "        WHEN (st.total_revenue / st.unique_customers) > (\n",
+        "            SELECT AVG(total_revenue/unique_customers) FROM jaffle_shop_retail.gold.dim_stores\n",
+        "        ) \n",
+        "            THEN 'CUSTOMER CHAMPION - High Value Customers'\n",
+        "        WHEN (st.total_revenue / st.store_age_days) > (\n",
+        "            SELECT AVG(total_revenue/store_age_days) FROM jaffle_shop_retail.gold.dim_stores\n",
+        "        ) \n",
+        "            THEN 'EFFICIENT OPERATOR - Good Revenue Rate'\n",
+        "        ELSE 'NEEDS REVIEW - Improvement Opportunities'\n",
+        "    END AS performance_tier\n",
+        "FROM jaffle_shop_retail.gold.dim_stores st\n",
+        "ORDER BY revenue_per_customer DESC;\n",
+        "\n",
+        "-- INSIGHT 4: Understand seasonal patterns and growth trends across product categories\n",
+        "-- BUSINESS USE: Inventory planning, promotional calendar, resource allocation\n",
+        "-- WHY IT MATTERS: Prevents stockouts during peak seasons and optimizes cash flow\n",
+        "\n",
+        "SELECT \n",
+        "    d.year,\n",
+        "    d.month,\n",
+        "    p.product_type,\n",
+        "    -- Volume metrics\n",
+        "    COUNT(DISTINCT fs.order_id) AS order_count,\n",
+        "    -- Financial metrics\n",
+        "    SUM(fs.sales_amount) AS total_revenue,\n",
+        "    SUM(fs.unit_profit) AS total_profit,\n",
+        "    ROUND(SUM(fs.unit_profit) / SUM(fs.sales_amount) * 100, 2) AS profit_margin_pct,\n",
+        "    -- Growth analysis (compare to previous month)\n",
+        "    LAG(SUM(fs.sales_amount)) OVER (PARTITION BY p.product_type ORDER BY d.year, d.month) AS prev_month_revenue,\n",
+        "    ROUND(\n",
+        "        (\n",
+        "            SUM(fs.sales_amount) - LAG(SUM(fs.sales_amount)) OVER (PARTITION BY p.product_type ORDER BY d.year, d.month)\n",
+        "        ) / NULLIF(LAG(SUM(fs.sales_amount)) OVER (PARTITION BY p.product_type ORDER BY d.year, d.month), 0) * 100, \n",
+        "        2\n",
+        "    ) AS monthly_growth_pct,\n",
+        "    -- Seasonal performance indicator\n",
+        "    CASE \n",
+        "        WHEN SUM(fs.sales_amount) > AVG(SUM(fs.sales_amount)) OVER (PARTITION BY p.product_type, d.month) THEN 'Above Seasonal Average'\n",
+        "        ELSE 'Below Seasonal Average'\n",
+        "    END AS seasonal_performance\n",
+        "FROM jaffle_shop_retail.gold.fact_sales fs\n",
+        "JOIN jaffle_shop_retail.gold.dim_date d ON fs.date_key = d.date_key\n",
+        "JOIN jaffle_shop_retail.gold.dim_products p ON fs.product_key = p.product_id\n",
+        "GROUP BY d.year, d.month, p.product_type\n",
+        "ORDER BY p.product_type, d.year, d.month;\n",
+        "\n",
+        "-- INSIGHT 5: Track how customer groups (cohorts) behave over time after their first purchase\n",
+        "-- BUSINESS USE: Customer retention strategies, lifetime value optimization\n",
+        "-- WHY IT MATTERS: Acquiring new customers is expensive - retention drives profitability\n",
+        "\n",
+        "WITH customer_cohorts AS (\n",
+        "    SELECT \n",
+        "        customer_id,\n",
+        "        DATE_TRUNC('month', MIN(ordered_at)) AS cohort_month,\n",
+        "        DATE_TRUNC('month', ordered_at) AS order_month,\n",
+        "        COUNT(DISTINCT order_id) AS orders_this_month,\n",
+        "        SUM(sales_amount) AS revenue_this_month\n",
+        "    FROM jaffle_shop_retail.gold.fact_sales\n",
+        "    GROUP BY customer_id, DATE_TRUNC('month', ordered_at)\n",
+        "),\n",
+        "\n",
+        "cohort_analysis AS (\n",
+        "    SELECT \n",
+        "        cohort_month,\n",
+        "        order_month,\n",
+        "        COUNT(DISTINCT customer_id) AS active_customers,\n",
+        "        SUM(orders_this_month) AS total_orders,\n",
+        "        SUM(revenue_this_month) AS total_revenue,\n",
+        "        -- Calculate months since first purchase\n",
+        "        CAST(months_between(order_month, cohort_month) AS INT) AS months_since_first_purchase\n",
+        "    FROM customer_cohorts\n",
+        "    GROUP BY cohort_month, order_month\n",
+        ")\n",
+        "\n",
+        "SELECT \n",
+        "    TO_CHAR(cohort_month, 'yyyy-MM') AS acquisition_cohort,\n",
+        "    months_since_first_purchase,\n",
+        "    active_customers,\n",
+        "    total_revenue,\n",
+        "    ROUND(total_revenue / NULLIF(active_customers, 0), 2) AS avg_revenue_per_active_customer,\n",
+        "    ROUND(\n",
+        "        100.0 * active_customers / FIRST_VALUE(active_customers) OVER \n",
+        "        (PARTITION BY cohort_month ORDER BY months_since_first_purchase), \n",
+        "        2\n",
+        "    ) AS retention_rate_pct,\n",
+        "    ROUND(\n",
+        "        100.0 * total_revenue / FIRST_VALUE(total_revenue) OVER \n",
+        "        (PARTITION BY cohort_month ORDER BY months_since_first_purchase), \n",
+        "        2\n",
+        "    ) AS revenue_retention_pct\n",
+        "FROM cohort_analysis\n",
+        "ORDER BY acquisition_cohort, months_since_first_purchase;\n",
+        "\n",
+        "-- INSIGHT 6: Compare profitability and operational complexity between perishable and non-perishable items\n",
+        "-- BUSINESS USE: Inventory management, supplier negotiations, waste reduction\n",
+        "-- WHY IT MATTERS: Perishable items have higher risk but can offer better margins\n",
+        "\n",
+        "SELECT \n",
+        "    p.product_type,\n",
+        "    -- Categorize by perishability\n",
+        "    CASE WHEN s.perishable THEN 'PERISHABLE' ELSE 'NON-PERISHABLE' END AS perishability_category,\n",
+        "    -- Supply chain complexity\n",
+        "    COUNT(DISTINCT s.supply_id) AS unique_suppliers,\n",
+        "    -- Cost structure analysis\n",
+        "    ROUND(AVG(s.cost), 2) AS avg_supply_cost,\n",
+        "    ROUND(AVG(p.price), 2) AS avg_retail_price,\n",
+        "    ROUND(AVG(p.price - s.cost), 2) AS avg_profit_per_unit,\n",
+        "    -- Margin analysis\n",
+        "    ROUND((AVG(p.price - s.cost) / AVG(p.price)) * 100, 2) AS avg_margin_percentage,\n",
+        "    -- Sales performance\n",
+        "    SUM(fs.sales_amount) AS total_revenue_generated,\n",
+        "    COUNT(fs.order_id) AS total_units_sold,\n",
+        "    -- Inventory turnover proxy\n",
+        "    ROUND(COUNT(fs.order_id) * 1.0 / COUNT(DISTINCT s.supply_id), 2) AS sales_per_supplier\n",
+        "FROM jaffle_shop_retail.gold.dim_supplies s\n",
+        "JOIN jaffle_shop_retail.gold.dim_products p ON s.product_sku = p.sku\n",
+        "LEFT JOIN jaffle_shop_retail.gold.fact_sales fs ON p.product_id = fs.product_key\n",
+        "GROUP BY p.product_type, s.perishable\n",
+        "ORDER BY avg_margin_percentage DESC, total_revenue_generated DESC;\n",
+        "\n",
+        "-- INSIGHT 7: Segment customers using Recency, Frequency, Monetary (RFM) analysis\n",
+        "-- BUSINESS USE: Targeted marketing, personalized offers, retention campaigns\n",
+        "-- WHY IT MATTERS: 20% of customers typically generate 80% of revenue - focus resources wisely\n",
+        "\n",
+        "WITH rfm_calculation AS (\n",
+        "    SELECT \n",
+        "        customer_key,\n",
+        "        customer_name,\n",
+        "        lifetime_value,\n",
+        "        lifetime_orders,\n",
+        "        days_since_last_order,\n",
+        "        -- Score customers from 1-5 (5 being best) for each RFM dimension\n",
+        "        NTILE(5) OVER (ORDER BY days_since_last_order DESC) AS recency_score, -- Recent customers get higher scores\n",
+        "        NTILE(5) OVER (ORDER BY lifetime_orders) AS frequency_score,          -- Frequent customers get higher scores  \n",
+        "        NTILE(5) OVER (ORDER BY lifetime_value) AS monetary_score            -- High spending customers get higher scores\n",
+        "    FROM jaffle_shop_retail.gold.agg_customer_lifetime_value\n",
+        "    WHERE lifetime_orders > 0  -- Only include customers with orders\n",
+        "),\n",
+        "rfm_segmentation AS (\n",
+        "    SELECT *,\n",
+        "        CONCAT(recency_score, frequency_score, monetary_score) AS rfm_score,\n",
+        "        -- Strategic segmentation based on RFM scores\n",
+        "        CASE \n",
+        "            WHEN recency_score >= 4 AND frequency_score >= 4 AND monetary_score >= 4 THEN 'CHAMPIONS - Best Customers'\n",
+        "            WHEN recency_score >= 4 AND frequency_score >= 3 THEN 'LOYAL CUSTOMERS - Regular & Recent'\n",
+        "            WHEN recency_score >= 4 THEN 'NEW CUSTOMERS - Recent but unknown potential'\n",
+        "            WHEN frequency_score >= 4 AND monetary_score >= 4 THEN 'CAN\\'T LOSE THEM - High value but slipping away'\n",
+        "            WHEN frequency_score >= 3 THEN 'AT RISK - Regulars becoming less recent'\n",
+        "            WHEN recency_score <= 2 AND frequency_score <= 2 AND monetary_score <= 2 THEN 'LOST CUSTOMERS - Need reactivation'\n",
+        "            ELSE 'NEED ATTENTION - Mixed behavior pattern'\n",
+        "        END AS rfm_segment\n",
+        "    FROM rfm_calculation\n",
+        ")\n",
+        "SELECT \n",
+        "    rfm_segment,\n",
+        "    COUNT(*) AS customer_count,\n",
+        "    ROUND(AVG(lifetime_value), 2) AS avg_lifetime_value,\n",
+        "    ROUND(AVG(lifetime_orders), 2) AS avg_orders_per_customer,\n",
+        "    ROUND(SUM(lifetime_value), 2) AS total_segment_value,\n",
+        "    -- Calculate segment importance\n",
+        "    ROUND(100.0 * COUNT(*) / (SELECT COUNT(*) FROM rfm_segmentation), 2) AS percent_of_customer_base,\n",
+        "    ROUND(100.0 * SUM(lifetime_value) / (SELECT SUM(lifetime_value) FROM rfm_segmentation), 2) AS percent_of_total_value\n",
+        "FROM rfm_segmentation\n",
+        "GROUP BY rfm_segment\n",
+        "ORDER BY total_segment_value DESC;\n",
+        "\n",
+        "-- INSIGHT 8: Understand how sales patterns vary throughout the day\n",
+        "-- BUSINESS USE: Staff scheduling, kitchen preparation, promotional timing\n",
+        "-- WHY IT MATTERS: Optimizes operations and customer experience during peak hours\n",
+        "\n",
+        "SELECT \n",
+        "    EXTRACT(HOUR FROM fs.ordered_at) AS hour_of_day,\n",
+        "    d.day_type,\n",
+        "    -- Customer activity metrics\n",
+        "    COUNT(DISTINCT fs.order_id) AS total_orders,\n",
+        "    COUNT(DISTINCT fs.customer_id) AS unique_customers,\n",
+        "    -- Financial performance\n",
+        "    ROUND(AVG(fs.sales_amount), 2) AS avg_order_value,\n",
+        "    ROUND(SUM(fs.sales_amount), 2) AS total_revenue,\n",
+        "    -- Operational efficiency metrics\n",
+        "    ROUND(SUM(fs.sales_amount) / COUNT(DISTINCT fs.order_id), 2) AS revenue_per_order,\n",
+        "    ROUND(COUNT(DISTINCT fs.order_id) * 1.0 / COUNT(DISTINCT fs.customer_id), 2) AS orders_per_customer,\n",
+        "    -- Business hour classification\n",
+        "    CASE \n",
+        "        WHEN EXTRACT(HOUR FROM fs.ordered_at) BETWEEN 7 AND 9 THEN 'BREAKFAST RUSH'\n",
+        "        WHEN EXTRACT(HOUR FROM fs.ordered_at) BETWEEN 11 AND 14 THEN 'LUNCH PEAK'\n",
+        "        WHEN EXTRACT(HOUR FROM fs.ordered_at) BETWEEN 17 AND 20 THEN 'DINNER RUSH'\n",
+        "        ELSE 'OFF-PEAK HOURS'\n",
+        "    END AS day_part_category\n",
+        "FROM jaffle_shop_retail.gold.fact_sales fs\n",
+        "JOIN jaffle_shop_retail.gold.dim_date d ON fs.date_key = d.date_key\n",
+        "WHERE fs.ordered_at IS NOT NULL\n",
+        "GROUP BY EXTRACT(HOUR FROM fs.ordered_at), d.day_type\n",
+        "ORDER BY hour_of_day, d.day_type;\n",
+        "\n",
+        "-- INSIGHT 9: Identify which products are frequently purchased together\n",
+        "-- BUSINESS USE: Product bundling, placement optimization, recommendation engines\n",
+        "-- WHY IT MATTERS: Increases average order value through strategic product pairing\n",
+        "\n",
+        "WITH product_combinations AS (\n",
+        "    -- Find all product pairs purchased in the same order\n",
+        "    SELECT \n",
+        "        o1.order_id,\n",
+        "        p1.product_name AS product_a,\n",
+        "        p2.product_name AS product_b,\n",
+        "        p1.product_type AS type_a,\n",
+        "        p2.product_type AS type_b,\n",
+        "        p1.price_category AS price_cat_a,\n",
+        "        p2.price_category AS price_cat_b\n",
+        "    FROM jaffle_shop_retail.gold.fact_sales o1\n",
+        "    JOIN jaffle_shop_retail.gold.fact_sales o2 ON o1.order_id = o2.order_id \n",
+        "        AND o1.product_key < o2.product_key  -- Avoid duplicate pairs (A+B vs B+A)\n",
+        "    JOIN jaffle_shop_retail.gold.dim_products p1 ON o1.product_key = p1.product_id\n",
+        "    JOIN jaffle_shop_retail.gold.dim_products p2 ON o2.product_key = p2.product_id\n",
+        "),\n",
+        "combination_analysis AS (\n",
+        "    SELECT \n",
+        "        product_a,\n",
+        "        product_b,\n",
+        "        type_a,\n",
+        "        type_b,\n",
+        "        price_cat_a,\n",
+        "        price_cat_b,\n",
+        "        COUNT(*) AS times_purchased_together,\n",
+        "        -- Rank combinations by frequency for each product\n",
+        "        RANK() OVER (PARTITION BY product_a ORDER BY COUNT(*) DESC) AS rank_for_product_a,\n",
+        "        RANK() OVER (PARTITION BY product_b ORDER BY COUNT(*) DESC) AS rank_for_product_b\n",
+        "    FROM product_combinations\n",
+        "    GROUP BY product_a, product_b, type_a, type_b, price_cat_a, price_cat_b\n",
+        ")\n",
+        "SELECT \n",
+        "    product_a,\n",
+        "    type_a,\n",
+        "    price_cat_a,\n",
+        "    product_b, \n",
+        "    type_b,\n",
+        "    price_cat_b,\n",
+        "    times_purchased_together,\n",
+        "    -- Combination type analysis\n",
+        "    CASE \n",
+        "        WHEN type_a = type_b THEN 'SAME CATEGORY PAIR'\n",
+        "        WHEN price_cat_a = 'Premium' AND price_cat_b = 'Premium' THEN 'PREMIUM COMBO'\n",
+        "        ELSE 'CROSS-CATEGORY PAIR'\n",
+        "    END AS combination_type,\n",
+        "    -- Strategic recommendation\n",
+        "    CASE \n",
+        "        WHEN times_purchased_together > 100 THEN 'STRONG BUNDLE CANDIDATE'\n",
+        "        WHEN times_purchased_together BETWEEN 50 AND 100 THEN 'MODERATE BUNDLE POTENTIAL'\n",
+        "        ELSE 'WEAK CORRELATION'\n",
+        "    END AS bundle_recommendation\n",
+        "FROM combination_analysis\n",
+        "WHERE rank_for_product_a <= 3 OR rank_for_product_b <= 3  -- Top 3 combinations for each product\n",
+        "ORDER BY times_purchased_together DESC\n",
+        "LIMIT 25;\n",
+        "\n",
+        "-- INSIGHT 10: Compare store performance across geographical regions accounting for local factors\n",
+        "-- BUSINESS USE: Regional strategy, expansion planning, local marketing\n",
+        "-- WHY IT MATTERS: Different regions have different customer behaviors and economic conditions\n",
+        "\n",
+        "WITH regional_data AS (\n",
+        "    SELECT \n",
+        "        st.store_name,\n",
+        "        st.tax_rate,\n",
+        "        CASE \n",
+        "            WHEN st.store_name IN ('New York', 'Brooklyn', 'Philadelphia') THEN 'NORTHEAST'\n",
+        "            WHEN st.store_name IN ('Chicago') THEN 'MIDWEST' \n",
+        "            WHEN st.store_name IN ('Los Angeles', 'San Francisco') THEN 'WEST COAST'\n",
+        "            WHEN st.store_name IN ('New Orleans') THEN 'SOUTH'\n",
+        "            ELSE 'OTHER'\n",
+        "        END AS region,\n",
+        "        st.total_revenue,\n",
+        "        st.unique_customers,\n",
+        "        st.total_orders,\n",
+        "        st.store_age_days\n",
+        "    FROM jaffle_shop_retail.gold.dim_stores st\n",
+        ")\n",
+        "\n",
+        "SELECT \n",
+        "    store_name,\n",
+        "    region,\n",
+        "    tax_rate,\n",
+        "    total_revenue,\n",
+        "    unique_customers,\n",
+        "    total_orders,\n",
+        "    ROUND(total_revenue / unique_customers, 2) AS revenue_per_customer,\n",
+        "    ROUND(total_revenue / total_orders, 2) AS avg_order_value,\n",
+        "    ROUND(total_revenue / store_age_days, 2) AS daily_revenue_rate,\n",
+        "    ROUND(\n",
+        "        (total_revenue / unique_customers) / NULLIF(AVG(total_revenue / unique_customers) OVER (PARTITION BY region), 0) * 100, \n",
+        "        2\n",
+        "    ) AS vs_region_avg_percent,\n",
+        "    CASE \n",
+        "        WHEN (total_revenue / unique_customers) > (\n",
+        "            SELECT AVG(total_revenue/unique_customers) FROM jaffle_shop_retail.gold.dim_stores\n",
+        "        ) \n",
+        "        AND (total_revenue / store_age_days) > (\n",
+        "            SELECT AVG(total_revenue/store_age_days) FROM jaffle_shop_retail.gold.dim_stores\n",
+        "        ) \n",
+        "            THEN 'REGIONAL LEADER'\n",
+        "        WHEN (total_revenue / unique_customers) > AVG(total_revenue / unique_customers) OVER (PARTITION BY region)\n",
+        "            THEN 'ABOVE REGIONAL AVG'\n",
+        "        ELSE 'BELOW REGIONAL AVG'\n",
+        "    END AS regional_performance\n",
+        "FROM regional_data\n",
+        "ORDER BY region, revenue_per_customer DESC;"
+      ]
+    },
+    {
+      "name": "aa6b5763",
+      "displayName": "dim_date",
+      "queryLines": [
+        "SELECT * FROM jaffle_shop_retail.gold.dim_date"
+      ]
+    },
+    {
+      "name": "bc642916",
+      "displayName": "dim_stores",
+      "queryLines": [
+        "SELECT * FROM jaffle_shop_retail.gold.dim_stores"
+      ]
+    },
+    {
+      "name": "037fac39",
+      "displayName": "dim_products",
+      "queryLines": [
+        "SELECT * FROM jaffle_shop_retail.gold.dim_products"
+      ]
+    },
+    {
+      "name": "2acaf207",
+      "displayName": "fact_inventory",
+      "queryLines": [
+        "SELECT * FROM jaffle_shop_retail.gold.fact_inventory"
+      ]
+    },
+    {
+      "name": "fbe6e309",
+      "displayName": "fact_sales",
+      "queryLines": [
+        "SELECT * FROM jaffle_shop_retail.gold.fact_sales"
+      ]
+    },
+    {
+      "name": "726f7cc8",
+      "displayName": "dim_supplies",
+      "queryLines": [
+        "SELECT * FROM jaffle_shop_retail.gold.dim_supplies"
+      ]
+    },
+    {
+      "name": "0989738e",
+      "displayName": "dim_customers",
+      "queryLines": [
+        "SELECT * FROM jaffle_shop_retail.gold.dim_customers"
+      ]
+    },
+    {
+      "name": "99c264ad",
+      "displayName": "agg_daily_sales",
+      "queryLines": [
+        "SELECT * FROM jaffle_shop_retail.gold.agg_daily_sales"
+      ]
+    },
+    {
+      "name": "94f13daf",
+      "displayName": "agg_customer_lifetime_value",
+      "queryLines": [
+        "SELECT * FROM jaffle_shop_retail.gold.agg_customer_lifetime_value"
+      ]
+    },
+    {
+      "name": "6009ca98",
+      "displayName": "Untitled dataset",
+      "queryLines": [
+        "USE CATALOG `workspace`;\n",
+        "USE SCHEMA `default`;\n",
+        "\n",
+        "SELECT \n",
+        "    p.product_name,\n",
+        "        d.year,\n",
+        "            SUM(fs.sales_amount) as annual_sales,\n",
+        "                COUNT(DISTINCT fs.order_id) as annual_orders,\n",
+        "                    ROUND(AVG(fs.sales_amount), 2) as avg_order_value\n",
+        "                    FROM jaffle_shop_retail.gold.fact_sales fs\n",
+        "                    JOIN jaffle_shop_retail.gold.dim_products p ON fs.product_key = p.product_id\n",
+        "                    JOIN jaffle_shop_retail.gold.dim_date d ON fs.date_key = d.date_key\n",
+        "                    WHERE p.product_name IN ('for richer or pourover', 'flame impala', 'vanilla ice','doctor stew','mel-bun','tangaroo','chai and mighty','adele-ade')\n",
+        "                      AND d.year BETWEEN 2000 AND 2023\n",
+        "                      GROUP BY p.product_name, d.year\n",
+        "                      ORDER BY p.product_name, d.year;"
+      ]
+    },
+    {
+      "name": "5eeaf252",
+      "displayName": "customer_rfm_segmentation",
+      "queryLines": [
+        "SELECT * FROM jaffle_shop_retail.insights.customer_rfm_segmentation"
+      ]
+    },
+    {
+      "name": "d911992f",
+      "displayName": "product_perishability",
+      "queryLines": [
+        "SELECT * FROM jaffle_shop_retail.insights.product_perishability"
+      ]
+    },
+    {
+      "name": "35a42674",
+      "displayName": "product_bundle_analysis",
+      "queryLines": [
+        "SELECT * FROM jaffle_shop_retail.insights.product_bundle_analysis"
+      ]
+    },
+    {
+      "name": "a168987c",
+      "displayName": "sales_pattern_vary_yearly",
+      "queryLines": [
+        "SELECT * FROM jaffle_shop_retail.insights.sales_pattern_vary_yearly"
+      ]
+    },
+    {
+      "name": "a0a547f0",
+      "displayName": "sales_pattern_vary_yearly",
+      "queryLines": [
+        "SELECT * FROM jaffle_shop_retail.insights.sales_pattern_vary_yearly"
+      ]
+    },
+    {
+      "name": "95659eb2",
+      "displayName": "product_seasonality_growth",
+      "queryLines": [
+        "SELECT * FROM jaffle_shop_retail.insights.product_seasonality_growth"
+      ]
+    },
+    {
+      "name": "3650808d",
+      "displayName": "store_efficiency",
+      "queryLines": [
+        "SELECT * FROM jaffle_shop_retail.insights.store_efficiency"
+      ]
+    },
+    {
+      "name": "60367efe",
+      "displayName": "store_performance",
+      "queryLines": [
+        "SELECT * FROM jaffle_shop_retail.insights.store_performance"
+      ]
+    },
+    {
+      "name": "02026695",
+      "displayName": "product_sales_by_year",
+      "queryLines": [
+        "SELECT * FROM jaffle_shop_retail.insights.product_sales_by_year"
+      ]
+    },
+    {
+      "name": "2bc7063f",
+      "displayName": "product_perishability",
+      "queryLines": [
+        "SELECT * FROM jaffle_shop_retail.insights.product_perishability"
+      ]
+    },
+    {
+      "name": "830da6f7",
+      "displayName": "product_bundle_analysis",
+      "queryLines": [
+        "SELECT * FROM jaffle_shop_retail.insights.product_bundle_analysis"
+      ]
+    },
+    {
+      "name": "2242cf39",
+      "displayName": "customer_spending_by_day_type",
+      "queryLines": [
+        "SELECT * FROM jaffle_shop_retail.insights.customer_spending_by_day_type"
+      ]
+    },
+    {
+      "name": "f292bc9e",
+      "displayName": "customer_rfm_segmentation",
+      "queryLines": [
+        "SELECT * FROM jaffle_shop_retail.insights.customer_rfm_segmentation"
+      ]
+    }
+  ],
+  "pages": [
+    {
+      "name": "d40cc089",
+      "displayName": "Jaffle Shop Retail Dashboard",
+      "layout": [
+        {
+          "widget": {
+            "name": "fde4bb94",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "0890b3ac",
+                  "fields": [
+                    {
+                      "name": "monthly(ordered_at)",
+                      "expression": "DATE_TRUNC(\"MONTH\", `ordered_at`)"
+                    },
+                    {
+                      "name": "sum(sales_amount)",
+                      "expression": "SUM(`sales_amount`)"
+                    },
+                    {
+                      "name": "sum(net_sales)",
+                      "expression": "SUM(`net_sales`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "area",
+              "encodings": {
+                "x": {
+                  "fieldName": "monthly(ordered_at)",
+                  "scale": {
+                    "type": "temporal"
+                  }
+                },
+                "y": {
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "fields": [
+                    {
+                      "fieldName": "sum(sales_amount)"
+                    },
+                    {
+                      "fieldName": "sum(net_sales)"
+                    }
+                  ]
+                },
+                "label": {
+                  "show": false
+                }
+              },
+              "style": {
+                "fontColor": {
+                  "light": "#FFFFFF"
+                }
+              },
+              "frame": {
+                "title": "Total sales and net sales per month",
+                "showTitle": true
+              },
+              "mark": {
+                "colors": [
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 1
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 2
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 3
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 4
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 5
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 6
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 7
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 8
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 9
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 10
+                  }
+                ]
+              }
+            },
+            "specExtensions": {
+              "widgetBackgroundColor": {
+                "light": "#000000"
+              }
+            }
+          },
+          "position": {
+            "x": 2,
+            "y": 10,
+            "width": 2,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "af5309de",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "976368f2",
+                  "fields": [
+                    {
+                      "name": "product_type",
+                      "expression": "`product_type`"
+                    },
+                    {
+                      "name": "sum(units_sold)",
+                      "expression": "SUM(`units_sold`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "product_type",
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "y-reversed"
+                    }
+                  }
+                },
+                "y": {
+                  "fieldName": "sum(units_sold)",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "color": {
+                  "fieldName": "product_type",
+                  "scale": {
+                    "type": "categorical",
+                    "mappings": [
+                      {
+                        "value": "VOLUME DRIVER - High Volume, Lower Margin",
+                        "color": {
+                          "themeColorType": "visualizationColors",
+                          "position": 2
+                        }
+                      }
+                    ]
+                  }
+                },
+                "label": {
+                  "show": true
+                }
+              },
+              "style": {
+                "fontColor": {
+                  "light": "#FFFFFF"
+                }
+              },
+              "frame": {
+                "title": "Total of Product Sold by Product_type ",
+                "showTitle": true
+              }
+            },
+            "specExtensions": {
+              "widgetBackgroundColor": {
+                "light": "#000000"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 4,
+            "width": 2,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "534a5b67",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "3a2ac488",
+                  "fields": [
+                    {
+                      "name": "sum(total_revenue)",
+                      "expression": "SUM(`total_revenue`)"
+                    },
+                    {
+                      "name": "region",
+                      "expression": "`region`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "pie",
+              "encodings": {
+                "angle": {
+                  "fieldName": "sum(total_revenue)",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "color": {
+                  "fieldName": "region",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "label": {
+                  "show": true
+                }
+              },
+              "frame": {
+                "title": "Revenue by Region",
+                "showTitle": true
+              },
+              "style": {
+                "fontColor": {
+                  "light": "#FFFFFF"
+                }
+              }
+            },
+            "specExtensions": {
+              "widgetBackgroundColor": {
+                "light": "#000000"
+              }
+            }
+          },
+          "position": {
+            "x": 2,
+            "y": 4,
+            "width": 2,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "14b22930",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "99c264ad",
+                  "fields": [
+                    {
+                      "name": "avg_order_value",
+                      "expression": "`avg_order_value`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "avg_order_value"
+                }
+              },
+              "style": {
+                "fontColor": {
+                  "light": "#FFFFFF"
+                }
+              },
+              "frame": {
+                "title": "Average of Order Value",
+                "showTitle": true,
+                "showDescription": false,
+                "headerAlignment": "center"
+              }
+            },
+            "specExtensions": {
+              "widgetBackgroundColor": {
+                "light": "#010101"
+              }
+            }
+          },
+          "position": {
+            "x": 5,
+            "y": 2,
+            "width": 1,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "e2e1c13d",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "b7193c98",
+                  "fields": [
+                    {
+                      "name": "unique_customers",
+                      "expression": "`unique_customers`"
+                    },
+                    {
+                      "name": "sum(daily_revenue_rate)",
+                      "expression": "SUM(`daily_revenue_rate`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 1,
+              "widgetType": "combo",
+              "encodings": {
+                "x": {
+                  "fieldName": "unique_customers",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "label": {
+                  "show": true
+                },
+                "y": {
+                  "primary": {
+                    "fields": [
+                      {
+                        "fieldName": "sum(daily_revenue_rate)"
+                      }
+                    ]
+                  },
+                  "secondary": {
+                    "fields": [
+                      {
+                        "fieldName": "sum(daily_revenue_rate)"
+                      }
+                    ]
+                  },
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                }
+              },
+              "style": {
+                "fontColor": {
+                  "light": "#FFFFFF"
+                }
+              },
+              "frame": {
+                "title": "Sum Of Daily Revenue rate of Unique Customers  ",
+                "showTitle": true,
+                "showDescription": false
+              },
+              "mark": {
+                "colors": [
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 1
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 4
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 3
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 4
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 5
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 6
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 7
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 8
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 9
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 10
+                  }
+                ]
+              }
+            },
+            "specExtensions": {
+              "widgetBackgroundColor": {
+                "light": "#000000"
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 4,
+            "width": 2,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "51d4ff8a",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "0989738e",
+                  "fields": [
+                    {
+                      "name": "count(*)",
+                      "expression": "COUNT(`*`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "count(*)"
+                }
+              },
+              "style": {
+                "fontColor": {
+                  "light": "#FBFBFB"
+                }
+              },
+              "frame": {
+                "title": "Total Customers",
+                "showTitle": true,
+                "showDescription": false,
+                "headerAlignment": "center"
+              }
+            },
+            "specExtensions": {
+              "widgetBackgroundColor": {
+                "light": "#000000"
+              },
+              "widgetBorderColor": {
+                "light": "#FFFFFF"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 1,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "ac418d9b",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "0890b3ac",
+                  "fields": [
+                    {
+                      "name": "sum(net_sales)",
+                      "expression": "SUM(`net_sales`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "sum(net_sales)"
+                }
+              },
+              "style": {
+                "fontColor": {
+                  "light": "#FFFFFF"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": " Net Sales",
+                "headerAlignment": "center"
+              }
+            },
+            "specExtensions": {
+              "widgetBackgroundColor": {
+                "light": "#000000"
+              }
+            }
+          },
+          "position": {
+            "x": 1,
+            "y": 2,
+            "width": 1,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "fca97c64",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "037fac39",
+                  "fields": [
+                    {
+                      "name": "count(*)",
+                      "expression": "COUNT(`*`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "count(*)"
+                }
+              },
+              "style": {
+                "fontColor": {
+                  "light": "#FFFFFF"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Total Product",
+                "headerAlignment": "center"
+              }
+            },
+            "specExtensions": {
+              "widgetBackgroundColor": {
+                "light": "#000000"
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 2,
+            "width": 1,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "e04b5646",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "94f13daf",
+                  "fields": [
+                    {
+                      "name": "store_visit_count",
+                      "expression": "`store_visit_count`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "store_visit_count"
+                }
+              },
+              "style": {
+                "fontColor": {
+                  "light": "#FFFFFF"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "headerAlignment": "center",
+                "title": "Store Visit Count"
+              }
+            },
+            "specExtensions": {
+              "widgetBackgroundColor": {
+                "light": "#000000"
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 2,
+            "width": 1,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "5c7bc0c3",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "99c264ad",
+                  "fields": [
+                    {
+                      "name": "sum(total_profit)",
+                      "expression": "SUM(`total_profit`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "sum(total_profit)"
+                }
+              },
+              "style": {
+                "fontColor": {
+                  "light": "#FFFFFF"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Total Profit",
+                "headerAlignment": "center"
+              }
+            },
+            "specExtensions": {
+              "widgetBackgroundColor": {
+                "light": "#000000"
+              }
+            }
+          },
+          "position": {
+            "x": 2,
+            "y": 2,
+            "width": 1,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "2b6a1363",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "6c563622",
+                  "fields": [
+                    {
+                      "name": "product_type",
+                      "expression": "`product_type`"
+                    },
+                    {
+                      "name": "product_name",
+                      "expression": "`product_name`"
+                    },
+                    {
+                      "name": "count(*)",
+                      "expression": "COUNT(`*`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 1,
+              "widgetType": "sankey",
+              "encodings": {
+                "value": {
+                  "fieldName": "count(*)"
+                },
+                "stages": [
+                  {
+                    "fieldName": "product_type"
+                  },
+                  {
+                    "fieldName": "product_name"
+                  }
+                ]
+              },
+              "style": {
+                "fontColor": {
+                  "light": "#FFFFFF"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Product Type and Count of Product",
+                "headerAlignment": "left"
+              }
+            },
+            "specExtensions": {
+              "widgetBackgroundColor": {
+                "light": "#000000"
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 10,
+            "width": 2,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "b17ceda9",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "99c264ad",
+                  "fields": [
+                    {
+                      "name": "month",
+                      "expression": "`month`"
+                    },
+                    {
+                      "name": "year",
+                      "expression": "`year`"
+                    },
+                    {
+                      "name": "sum(total_net_sales)",
+                      "expression": "SUM(`total_net_sales`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "year",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "y": {
+                  "fieldName": "sum(total_net_sales)",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "label": {
+                  "show": false
+                },
+                "extra": [
+                  {
+                    "fieldName": "month"
+                  }
+                ]
+              },
+              "style": {
+                "fontColor": {
+                  "light": "#FFFFFF"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Yearly  Net_sales",
+                "headerAlignment": "left"
+              },
+              "mark": {
+                "colors": [
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 3
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 2
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 3
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 4
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 5
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 6
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 7
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 8
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 9
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 10
+                  }
+                ]
+              }
+            },
+            "specExtensions": {
+              "widgetBackgroundColor": {
+                "light": "#000000"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 10,
+            "width": 2,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "71276a5d",
+            "multilineTextboxSpec": {
+              "lines": [
+                "# <span style=\"text-align:center;display:block\"><span style=\"font-size: 72px;line-height: 1.5;color: #E8ECF0;\">Jaffle Shop Retail Insights</span></span>"
+              ]
+            },
+            "specExtensions": {
+              "widgetBackgroundColor": {
+                "light": "#000000"
+              },
+              "widgetBorderColor": {
+                "light": "#FFFFFF"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 6,
+            "height": 2
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS"
+    },
+    {
+      "name": "7ea02707",
+      "displayName": "Advanced_Insights",
+      "layout": [
+        {
+          "widget": {
+            "name": "845b62ac",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "5eeaf252",
+                  "fields": [
+                    {
+                      "name": "sum(avg_lifetime_value)",
+                      "expression": "SUM(`avg_lifetime_value`)"
+                    },
+                    {
+                      "name": "rfm_segment",
+                      "expression": "`rfm_segment`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "pie",
+              "encodings": {
+                "angle": {
+                  "fieldName": "sum(avg_lifetime_value)",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "color": {
+                  "fieldName": "rfm_segment",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "label": {
+                  "show": true
+                }
+              },
+              "style": {
+                "fontColor": {
+                  "light": "#FFFFFF"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Average RFM Value by RFM Segment"
+              }
+            },
+            "specExtensions": {
+              "widgetBackgroundColor": {
+                "light": "#000000"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 3,
+            "height": 8
+          }
+        },
+        {
+          "widget": {
+            "name": "7eacc3d6",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "d911992f",
+                  "fields": [
+                    {
+                      "name": "product_type",
+                      "expression": "`product_type`"
+                    },
+                    {
+                      "name": "sum(total_revenue_generated)",
+                      "expression": "SUM(`total_revenue_generated`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "product_type",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "y": {
+                  "fieldName": "sum(total_revenue_generated)",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "label": {
+                  "show": true
+                }
+              },
+              "style": {
+                "fontColor": {
+                  "light": "#FFFFFF"
+                }
+              },
+              "frame": {
+                "title": "Total Revenue Generated by Product Type",
+                "showTitle": true
+              },
+              "mark": {
+                "colors": [
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 1
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 2
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 3
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 4
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 5
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 6
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 7
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 8
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 9
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 10
+                  }
+                ]
+              }
+            },
+            "specExtensions": {
+              "widgetBackgroundColor": {
+                "light": "#000000"
+              },
+              "widgetBorderColor": {
+                "light": "#FFFFFF"
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 2,
+            "width": 3,
+            "height": 8
+          }
+        },
+        {
+          "widget": {
+            "name": "773fbebc",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "d911992f",
+                  "fields": [
+                    {
+                      "name": "sum(total_units_sold)",
+                      "expression": "SUM(`total_units_sold`)"
+                    },
+                    {
+                      "name": "product_type",
+                      "expression": "`product_type`"
+                    },
+                    {
+                      "name": "perishability_category",
+                      "expression": "`perishability_category`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "product_type",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "y": {
+                  "fieldName": "perishability_category",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "label": {
+                  "show": true
+                },
+                "extra": [
+                  {
+                    "fieldName": "sum(total_units_sold)"
+                  }
+                ]
+              },
+              "frame": {
+                "title": "Product Types by Perishability Category and Total unit Sold",
+                "showTitle": true
+              },
+              "style": {
+                "fontColor": {
+                  "light": "#FFFFFF"
+                }
+              },
+              "mark": {
+                "colors": [
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 3
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 2
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 3
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 4
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 5
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 6
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 7
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 8
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 9
+                  },
+                  {
+                    "themeColorType": "visualizationColors",
+                    "position": 10
+                  }
+                ]
+              }
+            },
+            "specExtensions": {
+              "widgetBackgroundColor": {
+                "light": "#000000"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 10,
+            "width": 3,
+            "height": 9
+          }
+        },
+        {
+          "widget": {
+            "name": "10855c28",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "02026695",
+                  "fields": [
+                    {
+                      "name": "product_strategy_category",
+                      "expression": "`product_strategy_category`"
+                    },
+                    {
+                      "name": "sum(units_sold)",
+                      "expression": "SUM(`units_sold`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "product_strategy_category",
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "y-reversed"
+                    }
+                  }
+                },
+                "y": {
+                  "fieldName": "sum(units_sold)",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "color": {
+                  "fieldName": "product_strategy_category",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "label": {
+                  "show": true
+                }
+              },
+              "frame": {
+                "title": "Product Strategy Category Breakdown",
+                "showTitle": true
+              },
+              "style": {
+                "fontColor": {
+                  "light": "#FFFFFF"
+                }
+              },
+              "mark": {
+                "layout": "percent-stack"
+              }
+            },
+            "specExtensions": {
+              "widgetBackgroundColor": {
+                "light": "#000000"
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 10,
+            "width": 3,
+            "height": 9
+          }
+        },
+        {
+          "widget": {
+            "name": "b0fcc41d",
+            "multilineTextboxSpec": {
+              "lines": [
+                "<span style=\"text-align:center;display:block\"><span style=\"font-size:72px;line-height:1.5;color:#E8ECF0\">Jaffle Retail Sales Advanced Insights</span></span>"
+              ]
+            },
+            "specExtensions": {
+              "widgetBackgroundColor": {
+                "light": "#000000"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 6,
+            "height": 2
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS"
+    }
+  ],
+  "uiSettings": {
+    "theme": {
+      "canvasBackgroundColor": {
+        "light": "#FFFFFF",
+        "dark": "#11171C"
+      },
+      "widgetBackgroundColor": {
+        "light": "#FFFCFC",
+        "dark": "#11171C"
+      },
+      "widgetBorderColor": {
+        "light": "#FFFFFF",
+        "dark": "#11171C"
+      },
+      "fontColor": {
+        "light": "#11171C",
+        "dark": "#FBFBFB"
+      },
+      "selectionColor": {
+        "light": "#237DC7",
+        "dark": "#8ACAFF"
+      },
+      "visualizationColors": [
+        "#077A9D",
+        "#FFAB00",
+        "#00A972",
+        "#FF3621",
+        "#8BCAE7",
+        "#AB4057",
+        "#99DDB4",
+        "#FCA4A1",
+        "#919191",
+        "#BF7080"
+      ],
+      "widgetHeaderAlignment": "LEFT"
+    },
+    "genieSpace": {
+      "isEnabled": false
+    }
+  }
+}
